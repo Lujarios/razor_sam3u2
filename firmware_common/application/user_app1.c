@@ -92,6 +92,17 @@ Promises:
 */
 void UserApp1Initialize(void)
 {
+  LedOff(WHITE);
+  LedOff(PURPLE);
+  LedOff(BLUE);
+  LedOff(CYAN);
+  LedOff(GREEN);
+  LedOff(YELLOW);
+  LedOff(ORANGE);
+  LedOff(RED);
+  
+  LedPWM(RED, LED_PWM_5);
+  
   /* If good initialization, set state to Idle */
   if( 1 )
   {
@@ -140,7 +151,72 @@ State Machine Function Definitions
 /* What does this state do? */
 static void UserApp1SM_Idle(void)
 {
+  // 0 = BUTTON0 / 1 = BUTTON1 / 2 = BUTTON2 / 3 = End of Password
+  static u8 u8PassowrdArray[11] = {1,2,1,2,1,2,3};
+  static u8 * pu8PasswordPointer = u8PassowrdArray;
+  static bool bFailState = FALSE;
+  static bool bPasswordFailed = FALSE;
+  static bool bLockedState = TRUE;
+  
+  if ( bLockedState && !bPasswordFailed ) {
+    if ( WasButtonPressed(BUTTON0) ) {
+      ButtonAcknowledge(BUTTON0);
+      
+      if ( *pu8PasswordPointer == 0 ) pu8PasswordPointer++;
+      else bFailState = TRUE;
+    }
     
+    if ( WasButtonPressed(BUTTON1) ) {
+      ButtonAcknowledge(BUTTON1);
+      if ( *pu8PasswordPointer == 1 ) pu8PasswordPointer++;
+      else bFailState = TRUE;
+    }
+    
+    if ( WasButtonPressed(BUTTON2) ) {
+      ButtonAcknowledge(BUTTON2);
+      if ( *pu8PasswordPointer == 2 ) pu8PasswordPointer++;
+      else bFailState = TRUE;
+    }
+    
+    if ( WasButtonPressed(BUTTON3) ) {
+      ButtonAcknowledge(BUTTON3);
+      if ( *pu8PasswordPointer == 3 && bFailState == FALSE ) {
+        LedOff(RED);
+        LedBlink(GREEN, LED_2HZ);
+        bLockedState = FALSE;
+      }
+      else {
+        LedOff(RED);
+        LedBlink(RED, LED_2HZ);
+        bPasswordFailed = TRUE;
+      }
+    }
+  } 
+  else if ( !bLockedState ) {
+    if ( WasButtonPressed(BUTTON0) || WasButtonPressed(BUTTON1) || WasButtonPressed(BUTTON2) || WasButtonPressed(BUTTON3) ) {
+      ButtonAcknowledge(BUTTON0);
+      ButtonAcknowledge(BUTTON1);
+      ButtonAcknowledge(BUTTON2);
+      ButtonAcknowledge(BUTTON3);
+      LedOff(GREEN);
+      LedPWM(RED, LED_PWM_5);
+      pu8PasswordPointer = &u8PassowrdArray[0];
+      bLockedState = TRUE;
+    }    
+  }
+  else if ( bPasswordFailed ) {
+    if ( WasButtonPressed(BUTTON0) || WasButtonPressed(BUTTON1) || WasButtonPressed(BUTTON2) || WasButtonPressed(BUTTON3) ) {
+      ButtonAcknowledge(BUTTON0);
+      ButtonAcknowledge(BUTTON1);
+      ButtonAcknowledge(BUTTON2);
+      ButtonAcknowledge(BUTTON3);
+      LedOff(RED);
+      LedPWM(RED, LED_PWM_5);
+      pu8PasswordPointer = &u8PassowrdArray[0];
+      bPasswordFailed = FALSE;
+    } 
+  }
+  
 } /* end UserApp1SM_Idle() */
      
 

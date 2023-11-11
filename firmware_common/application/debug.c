@@ -707,7 +707,7 @@ static void DebugCommandLedTestToggle(void)
   {
     G_u32DebugFlags |= _DEBUG_LED_TEST_ENABLE;
     DebugPrintf(G_au8UtilMessageON);
-    
+ 
     LedOn(WHITE);
     LedOn(PURPLE);
     LedOn(BLUE);
@@ -716,6 +716,7 @@ static void DebugCommandLedTestToggle(void)
     LedOn(YELLOW);
     LedOn(ORANGE);
     LedOn(RED);
+    
   }
   
 } /* end DebugCommandLedTestToggle() */
