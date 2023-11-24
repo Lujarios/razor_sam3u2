@@ -101,7 +101,7 @@ void UserApp1Initialize(void)
   LedOff(ORANGE);
   LedOff(RED);
   
-  LedPWM(RED, LED_PWM_5);
+  LedPWM(YELLOW, LED_PWM_5);
   
   /* If good initialization, set state to Idle */
   if( 1 )
@@ -152,16 +152,60 @@ State Machine Function Definitions
 static void UserApp1SM_Idle(void)
 {
   // 0 = BUTTON0 / 1 = BUTTON1 / 2 = BUTTON2 / 3 = End of Password
-  static u8 u8PassowrdArray[11] = {1,2,1,2,1,2,3};
+  static u8 u8PassowrdArray[11] = {0,1,2,3};
   static u8 * pu8PasswordPointer = u8PassowrdArray;
+  static u16 u16TimeCounter = 0;
   static bool bFailState = FALSE;
   static bool bPasswordFailed = FALSE;
   static bool bLockedState = TRUE;
+  static bool bSettingState = TRUE;
+  static bool bChangingPassword = FALSE;
   
-  if ( bLockedState && !bPasswordFailed ) {
+  if( bSettingState ) {
+    if( bChangingPassword ) {
+      if ( WasButtonPressed(BUTTON0) && (pu8PasswordPointer - u8PassowrdArray) < 10 ) {
+        ButtonAcknowledge(BUTTON0);
+        *pu8PasswordPointer = 0;
+        pu8PasswordPointer++;
+      }
+      else if ( WasButtonPressed(BUTTON1) && (pu8PasswordPointer - u8PassowrdArray) < 10 ) {
+        ButtonAcknowledge(BUTTON1);
+        *pu8PasswordPointer = 1;
+        pu8PasswordPointer++;
+      }
+      else if ( WasButtonPressed(BUTTON2) && (pu8PasswordPointer - u8PassowrdArray) < 10 ) {
+        ButtonAcknowledge(BUTTON2);
+        *pu8PasswordPointer = 2;
+        pu8PasswordPointer++;
+      }
+      else if ( WasButtonPressed(BUTTON3) ) {
+        ButtonAcknowledge(BUTTON3);
+        *pu8PasswordPointer = 3;
+        pu8PasswordPointer = u8PassowrdArray;
+        bChangingPassword = FALSE;
+        LedOff(YELLOW);
+        LedPWM(RED, LED_PWM_5);
+      }
+    }
+    else {
+      u16TimeCounter++;
+      if( u16TimeCounter >= 3000 ) {
+        u16TimeCounter = 0;
+        bSettingState = FALSE;
+        LedOff(YELLOW);
+        LedPWM(RED, LED_PWM_5);
+      } 
+      else if ( WasButtonPressed(BUTTON3) ) {
+      ButtonAcknowledge(BUTTON3);
+      bChangingPassword = TRUE;
+      u16TimeCounter = 0;
+    }
+    }
+  }
+  
+  else if ( bLockedState && !bPasswordFailed ) {
     if ( WasButtonPressed(BUTTON0) ) {
       ButtonAcknowledge(BUTTON0);
-      
       if ( *pu8PasswordPointer == 0 ) pu8PasswordPointer++;
       else bFailState = TRUE;
     }
@@ -169,7 +213,7 @@ static void UserApp1SM_Idle(void)
     if ( WasButtonPressed(BUTTON1) ) {
       ButtonAcknowledge(BUTTON1);
       if ( *pu8PasswordPointer == 1 ) pu8PasswordPointer++;
-      else bFailState = TRUE;
+      else bFailState = TRUE; 
     }
     
     if ( WasButtonPressed(BUTTON2) ) {
@@ -189,32 +233,24 @@ static void UserApp1SM_Idle(void)
         LedOff(RED);
         LedBlink(RED, LED_2HZ);
         bPasswordFailed = TRUE;
+        bFailState = FALSE;
       }
     }
   } 
-  else if ( !bLockedState ) {
+  
+  else if ( !bLockedState || bPasswordFailed ) {
     if ( WasButtonPressed(BUTTON0) || WasButtonPressed(BUTTON1) || WasButtonPressed(BUTTON2) || WasButtonPressed(BUTTON3) ) {
       ButtonAcknowledge(BUTTON0);
       ButtonAcknowledge(BUTTON1);
       ButtonAcknowledge(BUTTON2);
       ButtonAcknowledge(BUTTON3);
       LedOff(GREEN);
-      LedPWM(RED, LED_PWM_5);
-      pu8PasswordPointer = &u8PassowrdArray[0];
-      bLockedState = TRUE;
-    }    
-  }
-  else if ( bPasswordFailed ) {
-    if ( WasButtonPressed(BUTTON0) || WasButtonPressed(BUTTON1) || WasButtonPressed(BUTTON2) || WasButtonPressed(BUTTON3) ) {
-      ButtonAcknowledge(BUTTON0);
-      ButtonAcknowledge(BUTTON1);
-      ButtonAcknowledge(BUTTON2);
-      ButtonAcknowledge(BUTTON3);
       LedOff(RED);
       LedPWM(RED, LED_PWM_5);
-      pu8PasswordPointer = &u8PassowrdArray[0];
+      pu8PasswordPointer = u8PassowrdArray;
+      bLockedState = TRUE;
       bPasswordFailed = FALSE;
-    } 
+    }    
   }
   
 } /* end UserApp1SM_Idle() */
