@@ -204,7 +204,7 @@ static void UserApp1SM_WaitChannelOpen(void)
 static void UserApp1SM_ChannelOpen(void)
 {
   static u8 au8TestMessage[] = {0,0,0,0,0xA5,0,0,0};
-  u8 au8DataContent[] = "xxxxxxxxxxxxxxxx";
+  u8 au8DataContent[] = "xxxxxxxx\0";
   
   
   if ( AntReadAppMessageBuffer() )
@@ -215,9 +215,10 @@ static void UserApp1SM_ChannelOpen(void)
       // Got some data 
       for(u8 i = 0; i < ANT_DATA_BYTES; i++)
       {
-        au8DataContent[2 * i] = HexToASCIICharUpper(G_au8AntApiCurrentMessageBytes[i] / 16);
-        au8DataContent[2 * i + 1] = HexToASCIICharUpper(G_au8AntApiCurrentMessageBytes[i] % 16);
+        au8DataContent[i] = G_au8AntApiCurrentMessageBytes[i];
+        
       }
+      //LcdMessage(LINE2_START_ADDR, au8DataContent);
       LcdMessage(LINE2_START_ADDR, au8DataContent);
     } // End ANT_DATA 
     else if ( G_eAntApiCurrentMessageClass == ANT_TICK )
