@@ -25,7 +25,7 @@ CONSTANTS
 - NONE
 
 TYPES
-- NONE
+- MorseCodeEntry (Struc)
 
 PUBLIC FUNCTIONS
 - NONE
@@ -40,12 +40,31 @@ PROTECTED FUNCTIONS
 #include "configuration.h"
 
 /***********************************************************************************************************************
+Structure Definitions
+***********************************************************************************************************************/
+typedef struct {
+    char* charP_character;
+    char* charP_morseCode;
+} MorseCodeEntry;
+
+
+/***********************************************************************************************************************
 Global variable definitions with scope across entire project.
 All Global variable names shall start with "G_<type>UserApp1"
 ***********************************************************************************************************************/
 /* New variables */
 volatile u32 G_u32UserApp1Flags;                          /*!< @brief Global state flags */
-
+volatile MorseCodeEntry G_MCE_MorseCodeList[] = {
+        {"A", ".-"},    {"B", "-..."},  {"C", "-.-."},  {"D", "-.."},   {"E", "."},
+        {"F", "..-."},  {"G", "--."},   {"H", "...."},  {"I", ".."},    {"J", ".---"},
+        {"K", "-.-"},   {"L", ".-.."},  {"M", "--"},    {"N", "-."},    {"O", "---"},
+        {"P", ".--."},  {"Q", "--.-"},  {"R", ".-."},   {"S", "..."},   {"T", "-"},
+        {"U", "..-"},   {"V", "...-"},  {"W", ".--"},   {"X", "-..-"},  {"Y", "-.--"},
+        {"Z", "--.."},  {"0", "-----"}, {"1", ".----"}, {"2", "..---"}, {"3", "...--"}, 
+        {"4", "....-"}, {"5", "....."}, {"6", "-...."}, {"7", "--..."}, {"8", "---.."}, 
+        {"9", "----."} 
+}; 
+volatile u32 G_u32_MorseCodeListDigitIndex = 26;
 
 /*--------------------------------------------------------------------------------------------------------------------*/
 /* Existing variables (defined in other files -- should all contain the "extern" keyword) */
@@ -62,10 +81,98 @@ Variable names shall start with "UserApp1_<type>" and be declared as static.
 static fnCode_type UserApp1_pfStateMachine;               /*!< @brief The state machine function pointer */
 //static u32 UserApp1_u32Timeout;                           /*!< @brief Timeout counter used across states */
 
+/**********************************************************************************************************************
+Function Prototypes
+**********************************************************************************************************************/
+bool PlayMorseFromString(char* MorseString);
+int CharacterToMorseCodeListIndex(char* character);
+char* CharacterToMorseCodeString(char* character);
 
 /**********************************************************************************************************************
 Function Definitions
 **********************************************************************************************************************/
+bool PlayMorseFromString(char* MorseString){
+  static u32 u32_TimeCounter = 0;
+  static u8 u8_LoopCounter = 0;
+  static u32 u32_Index = 0;
+  static char char_CurrentCharacter = ' ';
+  
+  if(u32_TimeCounter >= 400)
+  {
+    u32_TimeCounter = 0;
+    char_CurrentCharacter = MorseString[u32_Index];
+    
+    if(char_CurrentCharacter == '.')
+    {
+      if(u8_LoopCounter < 1)
+      {
+        LedOn(RED);
+        PWMAudioOn(BUZZER1);
+        u8_LoopCounter++; // Increment LoopCounter
+      }
+      else
+      {
+        LedOff(RED);
+        PWMAudioOff(BUZZER1);
+        u8_LoopCounter = 0; // Reset LoopCounter
+        u32_Index++; // Increment Index
+      }
+        
+    }
+    else if(char_CurrentCharacter == '-')
+    {
+      if(u8_LoopCounter < 3)
+      {
+        LedOn(RED);
+        PWMAudioOn(BUZZER1);
+        u8_LoopCounter++; // Increment LoopCounter
+      }
+      else
+      {
+        LedOff(RED);
+        PWMAudioOff(BUZZER1);
+        u8_LoopCounter = 0; // Reset LoopCounter
+        u32_Index++; // Increment Index
+      }
+    }
+    else
+    {
+      return FALSE;
+    }
+  }
+  
+  u32_TimeCounter++; // Increment time
+  
+  return TRUE; // Continue Running
+}
+
+int CharacterToMorseCodeListIndex(char* character){
+  u32 u32_ASCIICode = *character;
+  if(u32_ASCIICode >= 65 && u32_ASCIICode <= 90) // "A" to "Z"
+  {
+    return u32_ASCIICode - 65; // Indexes 0-25
+  }
+  else if(u32_ASCIICode >= 48 && u32_ASCIICode <= 57) // "0" to "9"
+  {
+    return u32_ASCIICode - 22; // Indexes 26-35
+  }
+  else // Out of bounds
+  {
+    return -1; 
+  }
+}
+
+char* CharacterToMorseCodeString(char* character){
+  u32 u32_MorseCodeListIndex = CharacterToMorseCodeListIndex(character);
+  if(u32_MorseCodeListIndex == -1) {
+    return "Out Of Bounds";
+  }
+  else
+  {
+    return G_MCE_MorseCodeList[u32_MorseCodeListIndex].charP_morseCode;
+  }
+  
+}
 
 /*--------------------------------------------------------------------------------------------------------------------*/
 /*! @publicsection */                                                                                            
@@ -92,6 +199,19 @@ Promises:
 */
 void UserApp1Initialize(void)
 {
+  /* Turn off all LEDs */
+  LedOff(WHITE);
+  LedOff(PURPLE);
+  LedOff(BLUE);
+  LedOff(CYAN);
+  LedOff(GREEN);
+  LedOff(YELLOW);
+  LedOff(ORANGE);
+  LedOff(RED);
+  
+  /* Setup buzzer */
+  PWMAudioSetFrequency(BUZZER1, 500);
+  
   /* If good initialization, set state to Idle */
   if( 1 )
   {
@@ -140,6 +260,26 @@ State Machine Function Definitions
 /* What does this state do? */
 static void UserApp1SM_Idle(void)
 {
+  /*
+  if(IsButtonPressed(BUTTON0))
+  {
+    PWMAudioOn(BUZZER1);
+  }
+  else
+  {
+    PWMAudioOff(BUZZER1);
+  }
+  
+  char* charP_MorseCodeString = CharacterToMorseCodeString("A");
+  */
+  
+  bool b_KeepRunning = TRUE;
+  char* charP_MorseString = ".--";
+  
+  while(b_KeepRunning)
+  {
+    b_KeepRunning = PlayMorseFromString(charP_MorseString);
+  }
     
 } /* end UserApp1SM_Idle() */
      
