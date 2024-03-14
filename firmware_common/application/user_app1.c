@@ -140,7 +140,22 @@ State Machine Function Definitions
 /* What does this state do? */
 static void UserApp1SM_Idle(void)
 {
+    u8 u8String[] = "A string yeah...\n\r";
+    u8 u8String2[] = "A number: ";
+    u8 u8String3[] = " The 'cursor' was here. ";
+    u32 u32Number = 123123;
+    static bool bPrintOnce = FALSE;
     
+    if( !bPrintOnce ) {
+      DebugPrintf(u8String);
+      DebugPrintf(u8String2);
+      DebugPrintNumber( u32Number);
+      DebugPrintf(u8String3);
+      DebugLineFeed();
+      DebugPrintf(u8String3);
+      DebugLineFeed();
+      bPrintOnce = TRUE;
+    }
 } /* end UserApp1SM_Idle() */
      
 
