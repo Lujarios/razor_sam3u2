@@ -43,8 +43,8 @@ PROTECTED FUNCTIONS
 Structure Definitions
 ***********************************************************************************************************************/
 typedef struct {
-    u8 charP_character[];
-    u8 charP_morseCode[];
+    u8 u8P_character[2];
+    u8 u8P_morseCode[6];
 } MorseCodeEntry;
 
 
@@ -54,7 +54,7 @@ All Global variable names shall start with "G_<type>UserApp1"
 ***********************************************************************************************************************/
 /* New variables */
 volatile u32 G_u32UserApp1Flags;                          /*!< @brief Global state flags */
-volatile MorseCodeEntry G_MCE_MorseCodeList[] = {
+MorseCodeEntry G_MCE_MorseCodeList[] = {
         {"A", ".-"},    {"B", "-..."},  {"C", "-.-."},  {"D", "-.."},   {"E", "."},
         {"F", "..-."},  {"G", "--."},   {"H", "...."},  {"I", ".."},    {"J", ".---"},
         {"K", "-.-"},   {"L", ".-.."},  {"M", "--"},    {"N", "-."},    {"O", "---"},
@@ -66,6 +66,7 @@ volatile MorseCodeEntry G_MCE_MorseCodeList[] = {
 }; 
 volatile u32 G_u32_MorseCodeListDigitIndex = 26;
 volatile bool G_b_MUTESOUND = FALSE;
+volatile u32 G_u32_TimeCounter = 0;
 
 /*--------------------------------------------------------------------------------------------------------------------*/
 /* Existing variables (defined in other files -- should all contain the "extern" keyword) */
@@ -85,15 +86,16 @@ static fnCode_type UserApp1_pfStateMachine;               /*!< @brief The state 
 /**********************************************************************************************************************
 Function Prototypes
 **********************************************************************************************************************/
-bool PlayMorseFromString(char* MorseString, int duration);
+bool PlayMorseFromString(u8* MorseString, int duration);
 int CharacterToMorseCodeListIndex(u8 character);
-char* CharacterToMorseCodeString(u8 character);
+u8* CharacterToMorseCodeString(u8 character);
 bool StartupSequence(void);
+bool Game(void);
 
 /**********************************************************************************************************************
 Function Definitions
 **********************************************************************************************************************/
-bool PlayMorseFromString(char* MorseString, int duration){
+bool PlayMorseFromString(u8* MorseString, int duration){
   static u32 u32_TimeCounter = 0;
   static u8 u8_LoopCounter = 0;
   static u32 u32_Index = 0;
@@ -188,14 +190,15 @@ int CharacterToMorseCodeListIndex(u8 character){
   }
 }
 
-char* CharacterToMorseCodeString(u8 character){
+u8* CharacterToMorseCodeString(u8 character){
   u32 u32_MorseCodeListIndex = CharacterToMorseCodeListIndex(character);
+  
   if(u32_MorseCodeListIndex == -1) {
     return "Out Of Bounds";
   }
   else
   {
-    return G_MCE_MorseCodeList[u32_MorseCodeListIndex].charP_morseCode;
+    return G_MCE_MorseCodeList[u32_MorseCodeListIndex].u8P_morseCode;
   }
   
 }
@@ -343,18 +346,28 @@ bool StartupSequence(){
 }
 
 bool Game(){
-  static u8 u8P_RoundString = "Round: ";
+  static u8 u8P_RoundString[] = "Round: ";
   static u32 u32_RandomNumber = 0, u32_RandomCharacterIndex;
-  static u8 u8P_ExpectedMorseString[], u8P_CharacterToTranslate[];
+  static u8 u8P_ExpectedMorseString[6] = {0,0,0,0,0,0}, u8P_CharacterToTranslate[2] = {0,0};
+  static u16 u16_Index = 0;
   static bool b_RoundStart = TRUE;
   
   if(b_RoundStart){
-    u32_RandomNumber = 4; // Need random function
+    srand(G_u32_TimeCounter);
+    u32_RandomNumber = rand();
     u32_RandomCharacterIndex = u32_RandomNumber % 26;
-    u8P_CharacterToTranslate = G_MCE_MorseCodeList[u32_RandomCharacterIndex][0];
-    u8P_ExpectedMorseString = G_MCE_MorseCodeList[u32_RandomCharacterIndex][1];
+    u8P_CharacterToTranslate[0] = G_MCE_MorseCodeList[u32_RandomCharacterIndex].u8P_character[0];
+    while(G_MCE_MorseCodeList[u32_RandomCharacterIndex].u8P_morseCode[u16_Index]){
+      u8P_ExpectedMorseString[u16_Index] = G_MCE_MorseCodeList[u32_RandomCharacterIndex].u8P_morseCode[u16_Index];
+      u16_Index++;
+    }
+    u16_Index = 0;
+    LcdMessage(LINE1_START_ADDR,u8P_ExpectedMorseString);
+    LcdMessage(LINE2_START_ADDR,u8P_CharacterToTranslate);
+    b_RoundStart = FALSE;
   }
   
+  return FALSE;
 }
 
 /*--------------------------------------------------------------------------------------------------------------------*/
@@ -448,7 +461,12 @@ static void UserApp1SM_Idle(void)
   static bool b_KeepRunning1 = FALSE;
   static bool b_KeepRunning2 = FALSE;
   static char* charP_MorseString1 = "...";
-  static char* charP_MorseString2 = "----";
+  static char* charP_MorseString2 = "----"; 
+  
+  G_u32_TimeCounter++;
+  if(G_u32_TimeCounter > 10000){
+    G_u32_TimeCounter = 0;
+  }
   
   G_b_MUTESOUND = TRUE;
   
@@ -457,7 +475,7 @@ static void UserApp1SM_Idle(void)
     b_Startup = StartupSequence();
   }
   else if(b_Game){
-    b_Game = FALSE;
+    b_Game = Game();
   }
   else if(b_KeepRunning1)
   {
