@@ -43,8 +43,8 @@ PROTECTED FUNCTIONS
 Structure Definitions
 ***********************************************************************************************************************/
 typedef struct {
-    char* charP_character;
-    char* charP_morseCode;
+    u8 charP_character[];
+    u8 charP_morseCode[];
 } MorseCodeEntry;
 
 
@@ -201,13 +201,14 @@ char* CharacterToMorseCodeString(u8 character){
 }
 
 bool StartupSequence(){
-  static uint8_t u8P_WelcomeMessageLine1[] = "Welcome to"; // buffer of 5 spaces from left to center
+  static u8 u8P_WelcomeMessageLine1[] = "Welcome to"; // buffer of 5 spaces from left to center
   static u8 u8P_WelcomeMessageLine2[] = "Morse Decoder"; // buffer of 3 from left to center
   static u8 u8P_LetterToWrite[] = {0,0};
   static u8 u8_IndexCounter = 0, u8_LineCounter = 1;
   static u32 u32_TimeCounter = 0;
-  static bool b_PlayMorse = TRUE, b_ClearScreen = TRIE, b_CharWritten = FALSE;
-  static bool b_WelcomeComplete = FALSE, b_HowToPlayComplete  == TRUE, b_Stall = FALSE;
+  static bool b_PlayMorse = TRUE, b_ClearScreen = TRUE, b_CharWritten = FALSE;
+  static bool b_ClearScreenCommandCalled = FALSE;
+  static bool b_WelcomeComplete = FALSE, b_HowToPlayComplete  = TRUE, b_Stall = FALSE;
   
   u32_TimeCounter++;
   
@@ -217,9 +218,14 @@ bool StartupSequence(){
   }
   
   if(b_Stall){
-    if(u32_TimeCounter > 500){
-      b_Stall = FALSE;
+    if(u32_TimeCounter > 1500 && !b_ClearScreenCommandCalled){
       b_ClearScreen = TRUE;
+      b_ClearScreenCommandCalled = TRUE;
+    }
+    if(u32_TimeCounter > 2000){
+      b_Stall = FALSE;
+      u32_TimeCounter = 0;
+      b_ClearScreenCommandCalled = FALSE;
     }
     return TRUE;
   }
@@ -236,7 +242,7 @@ bool StartupSequence(){
           }
           b_PlayMorse = PlayMorseFromString(CharacterToMorseCodeString(u8P_WelcomeMessageLine1[u8_IndexCounter]),40);
         }
-        else if(u32_TimeCounter > 100){
+        else if(u32_TimeCounter > 200){
           u8_IndexCounter++;
           b_PlayMorse = TRUE;
           b_CharWritten = FALSE;
@@ -274,12 +280,56 @@ bool StartupSequence(){
        }
     }
   }
- 
-  // Stall for some time
-  
   
   // How to play sequence
-  
+  /* --------------------
+         How to play...    
+                
+     --------------------*/ 
+  /* --------------------
+     | Input              
+     v  Morse             
+     --------------------*/
+  /* --------------------
+         | Delete              
+         v  Input              
+     --------------------*/
+  /* --------------------
+        Restart |               
+          Input v               
+     --------------------*/
+  /* --------------------
+                 Enter  |               
+               Solution v               
+     --------------------*/
+  if(!b_HowToPlayComplete){
+    if(u8_IndexCounter == 0){
+      LcdMessage(LINE1_START_ADDR,"    How to play...  ");
+      LcdMessage(LINE2_START_ADDR,"                    ");
+    }
+    else if(u8_IndexCounter == 1){
+      LcdMessage(LINE1_START_ADDR,"| Input             ");
+      LcdMessage(LINE2_START_ADDR,"v  Morse            ");
+    }
+    else if(u8_IndexCounter == 2){
+      LcdMessage(LINE1_START_ADDR,"     | Delete       ");
+      LcdMessage(LINE2_START_ADDR,"     v  Input       ");
+    }
+    else if(u8_IndexCounter == 3){
+      LcdMessage(LINE1_START_ADDR,"    Restart |       ");
+      LcdMessage(LINE2_START_ADDR,"      Input v       ");
+    }
+    else if(u8_IndexCounter == 4){
+      LcdMessage(LINE1_START_ADDR,"            Enter  |");
+      LcdMessage(LINE2_START_ADDR,"          Solution v");
+    }
+    else{
+      b_HowToPlayComplete = TRUE;
+      u8_IndexCounter = 0;
+    }
+    u8_IndexCounter++;
+    b_Stall = TRUE;
+  }
   
   // End of function
   if(b_WelcomeComplete && b_HowToPlayComplete){
@@ -290,6 +340,21 @@ bool StartupSequence(){
     // Continue running
     return TRUE;
   }
+}
+
+bool Game(){
+  static u8 u8P_RoundString = "Round: ";
+  static u32 u32_RandomNumber = 0, u32_RandomCharacterIndex;
+  static u8 u8P_ExpectedMorseString[], u8P_CharacterToTranslate[];
+  static bool b_RoundStart = TRUE;
+  
+  if(b_RoundStart){
+    u32_RandomNumber = 4; // Need random function
+    u32_RandomCharacterIndex = u32_RandomNumber % 26;
+    u8P_CharacterToTranslate = G_MCE_MorseCodeList[u32_RandomCharacterIndex][0];
+    u8P_ExpectedMorseString = G_MCE_MorseCodeList[u32_RandomCharacterIndex][1];
+  }
+  
 }
 
 /*--------------------------------------------------------------------------------------------------------------------*/
@@ -379,7 +444,7 @@ State Machine Function Definitions
 static void UserApp1SM_Idle(void)
 {
   static bool b_Startup = TRUE;
-  static bool b_Menu = FALSE;
+  static bool b_Game = TRUE;
   static bool b_KeepRunning1 = FALSE;
   static bool b_KeepRunning2 = FALSE;
   static char* charP_MorseString1 = "...";
@@ -391,8 +456,8 @@ static void UserApp1SM_Idle(void)
   {
     b_Startup = StartupSequence();
   }
-  else if(b_Menu){
-    b_Menu = FALSE;
+  else if(b_Game){
+    b_Game = FALSE;
   }
   else if(b_KeepRunning1)
   {
