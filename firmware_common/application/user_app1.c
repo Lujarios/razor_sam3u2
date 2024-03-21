@@ -19,7 +19,7 @@ To start a new task using this user_app1 as a template:
 
 ------------------------------------------------------------------------------------------------------------------------
 GLOBALS
-- NONE
+- MUTE
 
 CONSTANTS
 - NONE
@@ -65,6 +65,7 @@ volatile MorseCodeEntry G_MCE_MorseCodeList[] = {
         {"9", "----."} 
 }; 
 volatile u32 G_u32_MorseCodeListDigitIndex = 26;
+volatile bool G_b_MUTESOUND = FALSE;
 
 /*--------------------------------------------------------------------------------------------------------------------*/
 /* Existing variables (defined in other files -- should all contain the "extern" keyword) */
@@ -84,20 +85,21 @@ static fnCode_type UserApp1_pfStateMachine;               /*!< @brief The state 
 /**********************************************************************************************************************
 Function Prototypes
 **********************************************************************************************************************/
-bool PlayMorseFromString(char* MorseString);
-int CharacterToMorseCodeListIndex(char* character);
-char* CharacterToMorseCodeString(char* character);
+bool PlayMorseFromString(char* MorseString, int duration);
+int CharacterToMorseCodeListIndex(u8 character);
+char* CharacterToMorseCodeString(u8 character);
+bool StartupSequence(void);
 
 /**********************************************************************************************************************
 Function Definitions
 **********************************************************************************************************************/
-bool PlayMorseFromString(char* MorseString){
+bool PlayMorseFromString(char* MorseString, int duration){
   static u32 u32_TimeCounter = 0;
   static u8 u8_LoopCounter = 0;
   static u32 u32_Index = 0;
-  static char char_CurrentCharacter = ' ';
+  static char char_CurrentCharacter;
   
-  if(u32_TimeCounter >= 400)
+  if(u32_TimeCounter >= duration)
   {
     u32_TimeCounter = 0;
     char_CurrentCharacter = MorseString[u32_Index];
@@ -107,13 +109,19 @@ bool PlayMorseFromString(char* MorseString){
       if(u8_LoopCounter < 1)
       {
         LedOn(RED);
+        if(!G_b_MUTESOUND)
+        {
         PWMAudioOn(BUZZER1);
+        }
         u8_LoopCounter++; // Increment LoopCounter
       }
       else
       {
         LedOff(RED);
+        if(!G_b_MUTESOUND)
+        {
         PWMAudioOff(BUZZER1);
+        }
         u8_LoopCounter = 0; // Reset LoopCounter
         u32_Index++; // Increment Index
       }
@@ -124,19 +132,33 @@ bool PlayMorseFromString(char* MorseString){
       if(u8_LoopCounter < 3)
       {
         LedOn(RED);
+        if(!G_b_MUTESOUND)
+        {
         PWMAudioOn(BUZZER1);
+        }
         u8_LoopCounter++; // Increment LoopCounter
       }
       else
       {
         LedOff(RED);
+        if(!G_b_MUTESOUND)
+        {
         PWMAudioOff(BUZZER1);
+        }
         u8_LoopCounter = 0; // Reset LoopCounter
         u32_Index++; // Increment Index
       }
     }
     else
     {
+      LedOff(RED);
+      if(!G_b_MUTESOUND)
+      {
+        PWMAudioOff(BUZZER1);
+      }
+      u32_TimeCounter = 0;
+      u8_LoopCounter = 0;
+      u32_Index = 0;
       return FALSE;
     }
   }
@@ -146,11 +168,15 @@ bool PlayMorseFromString(char* MorseString){
   return TRUE; // Continue Running
 }
 
-int CharacterToMorseCodeListIndex(char* character){
-  u32 u32_ASCIICode = *character;
+int CharacterToMorseCodeListIndex(u8 character){
+  u32 u32_ASCIICode = character;
   if(u32_ASCIICode >= 65 && u32_ASCIICode <= 90) // "A" to "Z"
   {
     return u32_ASCIICode - 65; // Indexes 0-25
+  }
+  else if(u32_ASCIICode >= 97 && u32_ASCIICode <= 122) // "a" to "z"
+  {
+    return u32_ASCIICode - 97; // Indexes 0-25
   }
   else if(u32_ASCIICode >= 48 && u32_ASCIICode <= 57) // "0" to "9"
   {
@@ -162,7 +188,7 @@ int CharacterToMorseCodeListIndex(char* character){
   }
 }
 
-char* CharacterToMorseCodeString(char* character){
+char* CharacterToMorseCodeString(u8 character){
   u32 u32_MorseCodeListIndex = CharacterToMorseCodeListIndex(character);
   if(u32_MorseCodeListIndex == -1) {
     return "Out Of Bounds";
@@ -172,6 +198,98 @@ char* CharacterToMorseCodeString(char* character){
     return G_MCE_MorseCodeList[u32_MorseCodeListIndex].charP_morseCode;
   }
   
+}
+
+bool StartupSequence(){
+  static uint8_t u8P_WelcomeMessageLine1[] = "Welcome to"; // buffer of 5 spaces from left to center
+  static u8 u8P_WelcomeMessageLine2[] = "Morse Decoder"; // buffer of 3 from left to center
+  static u8 u8P_LetterToWrite[] = {0,0};
+  static u8 u8_IndexCounter = 0, u8_LineCounter = 1;
+  static u32 u32_TimeCounter = 0;
+  static bool b_PlayMorse = TRUE, b_ClearScreen = TRIE, b_CharWritten = FALSE;
+  static bool b_WelcomeComplete = FALSE, b_HowToPlayComplete  == TRUE, b_Stall = FALSE;
+  
+  u32_TimeCounter++;
+  
+  if(b_ClearScreen){
+    LcdCommand(LCD_CLEAR_CMD);
+    b_ClearScreen = FALSE;
+  }
+  
+  if(b_Stall){
+    if(u32_TimeCounter > 500){
+      b_Stall = FALSE;
+      b_ClearScreen = TRUE;
+    }
+    return TRUE;
+  }
+  
+  // Welcome sequence
+  if(!b_WelcomeComplete) {
+    if(u8_LineCounter == 1){ // Line 1 Print
+      if(u8_IndexCounter < 10){
+        if(b_PlayMorse){
+          if(!b_CharWritten){
+            b_CharWritten = TRUE;
+            u8P_LetterToWrite[0] = u8P_WelcomeMessageLine1[u8_IndexCounter];
+            LcdMessage(LINE1_START_ADDR + 5 + u8_IndexCounter, u8P_LetterToWrite);
+          }
+          b_PlayMorse = PlayMorseFromString(CharacterToMorseCodeString(u8P_WelcomeMessageLine1[u8_IndexCounter]),40);
+        }
+        else if(u32_TimeCounter > 100){
+          u8_IndexCounter++;
+          b_PlayMorse = TRUE;
+          b_CharWritten = FALSE;
+          u32_TimeCounter = 0;
+        }
+      }
+      else{
+        u8_LineCounter++;
+        u8_IndexCounter = 0;
+      }
+    }
+    else if(u8_LineCounter == 2){ // Line 2 Print
+       if(u8_IndexCounter < 13){
+         if(b_PlayMorse){
+           if(!b_CharWritten){
+             b_CharWritten = TRUE;
+             u8P_LetterToWrite[0] = u8P_WelcomeMessageLine2[u8_IndexCounter];
+             LcdMessage(LINE2_START_ADDR + 3 + u8_IndexCounter, u8P_LetterToWrite);
+           }
+           b_PlayMorse = PlayMorseFromString(CharacterToMorseCodeString(u8P_WelcomeMessageLine2[u8_IndexCounter]),40);
+         }
+         else if(u32_TimeCounter > 100){
+           u8_IndexCounter++;
+           b_PlayMorse = TRUE;
+           b_CharWritten = FALSE;
+           u32_TimeCounter = 0;
+         }
+       }
+       else{
+         u8_IndexCounter = 0;
+         u8_LineCounter = 0;
+         b_WelcomeComplete = TRUE;
+         b_HowToPlayComplete = FALSE;
+         b_Stall = TRUE;
+       }
+    }
+  }
+ 
+  // Stall for some time
+  
+  
+  // How to play sequence
+  
+  
+  // End of function
+  if(b_WelcomeComplete && b_HowToPlayComplete){
+    // Finished running
+    return FALSE;
+  }
+  else{
+    // Continue running
+    return TRUE;
+  }
 }
 
 /*--------------------------------------------------------------------------------------------------------------------*/
@@ -260,7 +378,35 @@ State Machine Function Definitions
 /* What does this state do? */
 static void UserApp1SM_Idle(void)
 {
-  /*
+  static bool b_Startup = TRUE;
+  static bool b_Menu = FALSE;
+  static bool b_KeepRunning1 = FALSE;
+  static bool b_KeepRunning2 = FALSE;
+  static char* charP_MorseString1 = "...";
+  static char* charP_MorseString2 = "----";
+  
+  G_b_MUTESOUND = TRUE;
+  
+  if(b_Startup)
+  {
+    b_Startup = StartupSequence();
+  }
+  else if(b_Menu){
+    b_Menu = FALSE;
+  }
+  else if(b_KeepRunning1)
+  {
+    b_KeepRunning1 = PlayMorseFromString(charP_MorseString1,100);
+  }
+  else if(b_KeepRunning2)
+  {
+    b_KeepRunning2 = PlayMorseFromString(charP_MorseString2,100);
+  }
+  else
+  {
+    LedOn(GREEN);
+  }
+    /*
   if(IsButtonPressed(BUTTON0))
   {
     PWMAudioOn(BUZZER1);
@@ -272,15 +418,6 @@ static void UserApp1SM_Idle(void)
   
   char* charP_MorseCodeString = CharacterToMorseCodeString("A");
   */
-  
-  bool b_KeepRunning = TRUE;
-  char* charP_MorseString = ".--";
-  
-  while(b_KeepRunning)
-  {
-    b_KeepRunning = PlayMorseFromString(charP_MorseString);
-  }
-    
 } /* end UserApp1SM_Idle() */
      
 
