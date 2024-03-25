@@ -110,7 +110,7 @@ bool PlayMorseFromString(u8* MorseString, int duration){
     {
       if(u8_LoopCounter < 1)
       {
-        LedOn(RED);
+        LedOn(BLUE);
         if(!G_b_MUTESOUND)
         {
         PWMAudioOn(BUZZER1);
@@ -119,7 +119,7 @@ bool PlayMorseFromString(u8* MorseString, int duration){
       }
       else
       {
-        LedOff(RED);
+        LedOff(BLUE);
         if(!G_b_MUTESOUND)
         {
         PWMAudioOff(BUZZER1);
@@ -133,7 +133,7 @@ bool PlayMorseFromString(u8* MorseString, int duration){
     {
       if(u8_LoopCounter < 3)
       {
-        LedOn(RED);
+        LedOn(BLUE);
         if(!G_b_MUTESOUND)
         {
         PWMAudioOn(BUZZER1);
@@ -142,7 +142,7 @@ bool PlayMorseFromString(u8* MorseString, int duration){
       }
       else
       {
-        LedOff(RED);
+        LedOff(BLUE);
         if(!G_b_MUTESOUND)
         {
         PWMAudioOff(BUZZER1);
@@ -153,7 +153,7 @@ bool PlayMorseFromString(u8* MorseString, int duration){
     }
     else
     {
-      LedOff(RED);
+      LedOff(BLUE);
       if(!G_b_MUTESOUND)
       {
         PWMAudioOff(BUZZER1);
@@ -229,6 +229,10 @@ bool StartupSequence(){
       b_Stall = FALSE;
       u32_TimeCounter = 0;
       b_ClearScreenCommandCalled = FALSE;
+      if(WasButtonPressed(BUTTON3)){
+        ButtonAcknowledge(BUTTON3);
+        return FALSE;
+      }
     }
     return TRUE;
   }
@@ -245,7 +249,7 @@ bool StartupSequence(){
           }
           b_PlayMorse = PlayMorseFromString(CharacterToMorseCodeString(u8P_WelcomeMessageLine1[u8_IndexCounter]),40);
         }
-        else if(u32_TimeCounter > 200){
+        else if(u32_TimeCounter > 250){
           u8_IndexCounter++;
           b_PlayMorse = TRUE;
           b_CharWritten = FALSE;
@@ -267,7 +271,7 @@ bool StartupSequence(){
            }
            b_PlayMorse = PlayMorseFromString(CharacterToMorseCodeString(u8P_WelcomeMessageLine2[u8_IndexCounter]),40);
          }
-         else if(u32_TimeCounter > 100){
+         else if(u32_TimeCounter > 250){
            u8_IndexCounter++;
            b_PlayMorse = TRUE;
            b_CharWritten = FALSE;
@@ -275,11 +279,14 @@ bool StartupSequence(){
          }
        }
        else{
-         u8_IndexCounter = 0;
-         u8_LineCounter = 0;
-         b_WelcomeComplete = TRUE;
-         b_HowToPlayComplete = FALSE;
-         b_Stall = TRUE;
+         if(IsButtonPressed(BUTTON3)){
+           ButtonAcknowledge(BUTTON3);
+           u8_IndexCounter = 0;
+           u8_LineCounter = 0;
+           b_WelcomeComplete = TRUE;
+           b_HowToPlayComplete = FALSE;
+           b_Stall = TRUE;
+         }
        }
     }
   }
@@ -346,28 +353,174 @@ bool StartupSequence(){
 }
 
 bool Game(){
-  static u8 u8P_RoundString[] = "Round: ";
+  static u8 u8p_Quotation[] = {34,0};
   static u32 u32_RandomNumber = 0, u32_RandomCharacterIndex;
   static u8 u8P_ExpectedMorseString[6] = {0,0,0,0,0,0}, u8P_CharacterToTranslate[2] = {0,0};
-  static u16 u16_Index = 0;
-  static bool b_RoundStart = TRUE;
+  static u8 u8P_Input[6] = {0,0,0,0,0,0}, u8p_InputToPrint[2] = {0,0};
+  static u8 u8_Index = 0, u8_Cursor = 0;
+  static u32 u32_StallCounter = 0, u32_PressCounter = 0;
+  static bool b_RoundStart = TRUE, b_Stall = FALSE, n_SolutionStall = FALSE, b_ReadInput = FALSE, b_CorrectSolution;
+  
+  /*--------------------
+    Morse For: "A"
+    Input:              
+    --------------------*/
+  /*--------------------
+          Correct       
+    
+    --------------------*/
+  /*--------------------
+         Incorrect       
+      Actual: ".-..."
+    --------------------*/
+  
+  // Stall to allow screen to refresh
+  if(b_Stall){
+    u32_StallCounter++;
+    if(u32_StallCounter > 100){
+      u32_StallCounter = 0;
+      b_Stall = FALSE;
+    }
+  }
+  if(n_SolutionStall){
+    u32_StallCounter++;
+    if(!b_CorrectSolution){
+    b_CorrectSolution = !(PlayMorseFromString(u8P_ExpectedMorseString,200));
+    }
+    if(u32_StallCounter > 3000){
+      u32_StallCounter = 0;
+      n_SolutionStall = FALSE;
+      LedOff(RED);
+      LedOff(GREEN);
+    }
+    return TRUE;
+  }
   
   if(b_RoundStart){
+    // Get random character
     srand(G_u32_TimeCounter);
     u32_RandomNumber = rand();
     u32_RandomCharacterIndex = u32_RandomNumber % 26;
     u8P_CharacterToTranslate[0] = G_MCE_MorseCodeList[u32_RandomCharacterIndex].u8P_character[0];
-    while(G_MCE_MorseCodeList[u32_RandomCharacterIndex].u8P_morseCode[u16_Index]){
-      u8P_ExpectedMorseString[u16_Index] = G_MCE_MorseCodeList[u32_RandomCharacterIndex].u8P_morseCode[u16_Index];
-      u16_Index++;
+    
+    // Wipe old correct answer
+    while(u8P_ExpectedMorseString[u8_Index]){
+      u8P_ExpectedMorseString[u8_Index] = 0;
+      u8_Index++;
     }
-    u16_Index = 0;
-    LcdMessage(LINE1_START_ADDR,u8P_ExpectedMorseString);
-    LcdMessage(LINE2_START_ADDR,u8P_CharacterToTranslate);
+    u8_Index = 0;
+    
+    // Get correct answer
+    while(G_MCE_MorseCodeList[u32_RandomCharacterIndex].u8P_morseCode[u8_Index]){
+      u8P_ExpectedMorseString[u8_Index] = G_MCE_MorseCodeList[u32_RandomCharacterIndex].u8P_morseCode[u8_Index];
+      u8_Index++;
+    }
+    u8_Index = 0;
+    
+    // Morse For: "A"
+    LcdMessage(LINE1_START_ADDR,"Morse for: ");
+    LcdMessage(LINE1_START_ADDR + 11,u8p_Quotation);
+    LcdMessage(LINE1_START_ADDR + 12,u8P_CharacterToTranslate);
+    LcdMessage(LINE1_START_ADDR + 13,u8p_Quotation);
+    // Input: 
+    LcdMessage(LINE2_START_ADDR,"Input:              ");
+    u8_Cursor = LINE2_START_ADDR + 7;
+    
+    // Complete RoundStart
     b_RoundStart = FALSE;
+    b_Stall = TRUE;
   }
   
-  return FALSE;
+  // Input Button
+  if(WasButtonPressed(BUTTON0)){
+    ButtonAcknowledge(BUTTON0);
+    if(u8_Index < 5) b_ReadInput = TRUE;
+  }
+  if(b_ReadInput){
+    if(IsButtonPressed(BUTTON0)){
+      u32_PressCounter++;
+    }
+    else{
+      if(u32_PressCounter > 300){
+        u8p_InputToPrint[0] = '-';
+        u8P_Input[u8_Index] = '-';
+      }
+      else{
+        u8p_InputToPrint[0] = '.';
+        u8P_Input[u8_Index] = '.';
+      }
+      u32_PressCounter = 0;
+      LcdMessage(u8_Cursor,u8p_InputToPrint);
+      u8_Index++;
+      u8_Cursor++;
+      b_Stall = TRUE;
+      b_ReadInput = FALSE;
+    }
+  }
+  
+  // Delete Button
+  if(WasButtonPressed(BUTTON1)){
+    ButtonAcknowledge(BUTTON1);
+    u8p_InputToPrint[0] = ' ';
+    u8_Index--;
+    u8P_Input[u8_Index] = 0; // Remove input
+    u8_Cursor--;
+    LcdMessage(u8_Cursor,u8p_InputToPrint);
+    b_Stall = TRUE;
+  }
+  
+  // Reset Input Button
+  if(WasButtonPressed(BUTTON2)){
+    ButtonAcknowledge(BUTTON2);
+    while(u8_Index > 0){
+      u8P_Input[u8_Index] = 0;
+      u8_Index--;
+    }
+    u8P_Input[u8_Index] = 0;
+    u8_Cursor = LINE2_START_ADDR + 7;
+    LcdMessage(u8_Cursor,"     ");
+  }
+  
+  // Enter Solution Button 
+  if(WasButtonPressed(BUTTON3)){
+    ButtonAcknowledge(BUTTON3);
+    // Check Input
+    u8_Index = 0;
+    b_CorrectSolution = TRUE;
+    while(u8P_ExpectedMorseString[u8_Index]){
+      if(u8P_ExpectedMorseString[u8_Index] == u8P_Input[u8_Index]){
+        // Correct input character
+      }
+      else{
+        b_CorrectSolution = FALSE;
+      }
+      u8_Index++;
+    }
+    u8_Index = 0;
+    if(b_CorrectSolution){
+      LedOn(GREEN);
+      LcdMessage(LINE1_START_ADDR,"      Correct       ");
+      LcdMessage(LINE2_START_ADDR,"                    ");
+    }
+    else{
+      LedOn(RED);
+      LcdMessage(LINE1_START_ADDR,"     Incorrect      ");
+      LcdMessage(LINE2_START_ADDR,"  Actual: ");
+      LcdMessage(LINE2_START_ADDR + 10, u8p_Quotation);
+      LcdMessage(LINE2_START_ADDR + 11, u8P_ExpectedMorseString);
+      u8_Cursor = 0;
+      while(u8P_ExpectedMorseString[u8_Cursor]){
+        u8_Cursor++;
+      }
+      u8_Cursor += LINE2_START_ADDR + 11;
+      LcdMessage(u8_Cursor, u8p_Quotation);
+      u8_Cursor = 0;
+    }
+    b_RoundStart = TRUE;
+    n_SolutionStall = TRUE;
+  }
+  
+  return TRUE;
 }
 
 /*--------------------------------------------------------------------------------------------------------------------*/
@@ -395,7 +548,7 @@ Promises:
 */
 void UserApp1Initialize(void)
 {
-  /* Turn off all LEDs */
+  /* Turn off all LEDs 
   LedOff(WHITE);
   LedOff(PURPLE);
   LedOff(BLUE);
@@ -403,10 +556,11 @@ void UserApp1Initialize(void)
   LedOff(GREEN);
   LedOff(YELLOW);
   LedOff(ORANGE);
-  LedOff(RED);
-  
+  LedOff(RED); */
+  LcdCommand(LCD_CLEAR_CMD);
   /* Setup buzzer */
   PWMAudioSetFrequency(BUZZER1, 500);
+  PWMAudioSetFrequency(BUZZER2, 500);
   
   /* If good initialization, set state to Idle */
   if( 1 )
@@ -440,7 +594,6 @@ Promises:
 void UserApp1RunActiveState(void)
 {
   UserApp1_pfStateMachine();
-
 } /* end UserApp1RunActiveState */
 
 
@@ -458,36 +611,30 @@ static void UserApp1SM_Idle(void)
 {
   static bool b_Startup = TRUE;
   static bool b_Game = TRUE;
-  static bool b_KeepRunning1 = FALSE;
-  static bool b_KeepRunning2 = FALSE;
-  static char* charP_MorseString1 = "...";
-  static char* charP_MorseString2 = "----"; 
   
   G_u32_TimeCounter++;
   if(G_u32_TimeCounter > 10000){
     G_u32_TimeCounter = 0;
   }
   
-  G_b_MUTESOUND = TRUE;
+  G_b_MUTESOUND = FALSE;
   
   if(b_Startup)
   {
     b_Startup = StartupSequence();
   }
   else if(b_Game){
+    if(IsButtonPressed(BUTTON0)){
+      PWMAudioOn(BUZZER2);
+    } 
+    else{
+      PWMAudioOff(BUZZER2);
+    }
     b_Game = Game();
-  }
-  else if(b_KeepRunning1)
-  {
-    b_KeepRunning1 = PlayMorseFromString(charP_MorseString1,100);
-  }
-  else if(b_KeepRunning2)
-  {
-    b_KeepRunning2 = PlayMorseFromString(charP_MorseString2,100);
   }
   else
   {
-    LedOn(GREEN);
+    LedOn(BLUE);
   }
     /*
   if(IsButtonPressed(BUTTON0))
