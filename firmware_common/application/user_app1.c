@@ -636,18 +636,6 @@ static void UserApp1SM_Idle(void)
   {
     LedOn(BLUE);
   }
-    /*
-  if(IsButtonPressed(BUTTON0))
-  {
-    PWMAudioOn(BUZZER1);
-  }
-  else
-  {
-    PWMAudioOff(BUZZER1);
-  }
-  
-  char* charP_MorseCodeString = CharacterToMorseCodeString("A");
-  */
 } /* end UserApp1SM_Idle() */
      
 
